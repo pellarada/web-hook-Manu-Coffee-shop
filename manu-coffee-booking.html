@@ -28,7 +28,7 @@
     body::after {
       content:'';
       position:fixed; inset:0;
-      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' result='noise'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='noise' scale='8'/%3E%3C/filter%3E%3Crect width='256' height='256' fill='%23000' filter='url(%23n)'/%3E%3C/svg%3E");
       pointer-events:none; z-index:999; opacity:.7;
     }
 
@@ -227,24 +227,6 @@
     }
     .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
 
-    .btn-send {
-      width:100%; padding:1.05rem;
-      background:var(--white); color:var(--black);
-      border:1px solid var(--white);
-      font-family:'DM Mono',monospace; font-size:.68rem;
-      letter-spacing:.25em; text-transform:uppercase;
-      cursor:pointer; position:relative; overflow:hidden; transition:transform .12s;
-    }
-    .btn-send::after {
-      content:''; position:absolute; inset:0;
-      background:var(--black); transform:translateY(100%);
-      transition:transform .35s cubic-bezier(.25,.46,.45,.94);
-    }
-    .btn-send:hover::after { transform:translateY(0); }
-    .btn-send span { position:relative; z-index:1; transition:color .35s; }
-    .btn-send:hover span { color:var(--white); }
-    .btn-send:active { transform:scale(.99); }
-
     .payload-wrap { border:1px solid var(--border); overflow:hidden; }
     .payload-head {
       display:flex; align-items:center; justify-content:space-between;
@@ -345,7 +327,7 @@
   <!-- RIGHT: WEBHOOK SEND FORM -->
   <div class="send-side">
 
-    <div class="col-label fi">Send via Webhook</div>
+    <div class="col-label fi">Webhook Configuration</div>
 
     <!-- URL -->
     <div class="fi">
@@ -355,7 +337,7 @@
         <input type="url" id="webhookUrl" placeholder="https://your-site.com/api/webhook"/>
       </div>
       <p style="font-size:.55rem;color:#2a2a2a;margin-top:.4rem;letter-spacing:.04em;">
-        Paste your coffee shop site endpoint. JSON is sent on submit.
+        Paste your coffee shop endpoint. Booking data submits automatically when form is complete.
       </p>
     </div>
 
@@ -394,14 +376,10 @@
       </div>
     </div>
 
-    <button class="btn-send fi" id="sendBtn">
-      <span>Send Booking via Webhook →</span>
-    </button>
-
     <!-- Payload preview -->
     <div class="payload-wrap fi">
       <div class="payload-head">
-        <span>JSON Payload Preview</span>
+        <span>JSON Payload</span>
         <button class="copy-btn" id="copyBtn">Copy</button>
       </div>
       <pre id="payloadPre">{
@@ -440,7 +418,7 @@
   Object.keys(fieldMap).forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener('input',  ()=>sync(id));
-    el.addEventListener('change', ()=>sync(id));
+    el.addEventListener('change', ()=>submitIfReady());
   });
 
   function sync(id) {
@@ -498,16 +476,22 @@
     clearTimeout(t._t); t._t=setTimeout(()=>t.className='',3200);
   }
 
-  document.getElementById('sendBtn').addEventListener('click', async ()=>{
+  function isFormComplete() {
+    const name    = document.getElementById('nameInput').value.trim();
+    const phone   = document.getElementById('phoneInput').value.trim();
+    const date    = document.getElementById('dateInput').value;
+    const time    = document.getElementById('timeInput').value;
+    return name && phone && date && time;
+  }
+
+  async function submitIfReady() {
+    if(!isFormComplete()) return;
+
     const name    = document.getElementById('nameInput').value.trim();
     const phone   = document.getElementById('phoneInput').value.trim();
     const date    = document.getElementById('dateInput').value;
     const time    = document.getElementById('timeInput').value;
     const webhook = document.getElementById('webhookUrl').value.trim();
-
-    if(!name||!phone||!date||!time){
-      toast('Fill in all booking details.',true); return;
-    }
 
     const id = genId();
     document.getElementById('bidVal').textContent = id;
@@ -519,9 +503,9 @@
     log(`Booking prepared — ${id}`,'ok');
 
     if(!webhook){
-      log('No webhook URL — logged locally.','');
-      toast(`Booking ready. Add a webhook URL to send.`);
-      console.log('📋 MANU Coffee:',payload); return;
+      log('No webhook URL configured.','');
+      console.log('📋 MANU Coffee:',payload); 
+      return;
     }
 
     log(`POST → ${webhook}`,'');
@@ -533,12 +517,19 @@
         mode:'no-cors'
       });
       log(`✓ Webhook fired.`,'ok');
-      toast(`Sent! Booking ID: ${id}`);
+      toast(`Booking submitted! ID: ${id}`);
+      // Clear form after successful submission
+      document.getElementById('nameInput').value = '';
+      document.getElementById('phoneInput').value = '';
+      document.getElementById('dateInput').value = '';
+      document.getElementById('timeInput').value = '';
+      refreshPayload();
+      Object.keys(fieldMap).forEach(id => sync(id));
     } catch(e) {
       log(`✗ ${e.message}`,'err');
       toast('Webhook failed. Check URL.',true);
     }
-  });
+  }
 
   document.getElementById('dateInput').min = new Date().toISOString().split('T')[0];
 </script>
