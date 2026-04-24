@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MANU Coffee — Webhook Booking</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --black:  #080808;
+      --white:  #f2f0eb;
+      --mid:    #666;
+      --border: #1e1e1e;
+      --dim:    #2c2c2c;
+    }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    body::after {
+      content:'';
+      position:fixed; inset:0;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events:none; z-index:999; opacity:.7;
+    }
+
+    /* HEADER */
+    header {
+      height: 64px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(1.5rem,5vw,3.5rem);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.15rem;
+      font-weight: 900;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .logo em { font-style:italic; font-weight:400; }
+    .hbadge {
+      font-size: .58rem;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--mid);
+      border: 1px solid var(--border);
+      padding: .28rem .7rem;
+    }
+
+    /* GRID */
+    .wrap {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media(max-width:780px){ .wrap{ grid-template-columns:1fr; } }
+
+    /* LEFT — LIVE PREVIEW */
+    .preview-side {
+      padding: clamp(2rem,5vw,3.5rem);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    @media(max-width:780px){
+      .preview-side{ border-right:none; border-bottom:1px solid var(--border); }
+    }
+
+    .col-label {
+      font-size: .58rem;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      color: var(--mid);
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+    }
+    .col-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+    .receipt {
+      border: 1px solid var(--dim);
+      padding: 2rem 2rem 1.5rem;
+      background: rgba(255,255,255,.015);
+      position: relative;
+      flex:1;
+    }
+    .receipt::before {
+      content:'';
+      position:absolute; top:-1px; left:0; right:0; height:3px;
+      background: repeating-linear-gradient(90deg, var(--white) 0 8px, transparent 8px 16px);
+      opacity:.1;
+    }
+    .receipt-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px dashed var(--dim);
+      margin-bottom: 1.5rem;
+    }
+    .receipt-brand {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+    }
+    .receipt-brand em { font-style:italic; font-weight:400; }
+    .live-badge {
+      display:flex; align-items:center; gap:.4rem;
+      font-size:.58rem; letter-spacing:.18em; text-transform:uppercase; color:var(--mid);
+    }
+    .dot {
+      width:6px; height:6px; background:var(--white); border-radius:50%;
+      animation: blink 1.6s infinite;
+    }
+    @keyframes blink {
+      0%,100%{ opacity:1; transform:scale(1); }
+      50%{ opacity:.2; transform:scale(.7); }
+    }
+    .receipt-row {
+      display:flex; justify-content:space-between; align-items:baseline;
+      padding:.85rem 0; border-bottom:1px solid rgba(255,255,255,.04); gap:1rem;
+    }
+    .receipt-row:last-of-type { border-bottom:none; }
+    .rk {
+      font-size:.58rem; letter-spacing:.2em; text-transform:uppercase; color:var(--mid); flex-shrink:0;
+    }
+    .rv {
+      font-family:'Playfair Display',serif;
+      font-size:clamp(1rem,2.2vw,1.3rem);
+      font-weight:700; text-align:right;
+      transition:all .2s ease; word-break:break-all;
+    }
+    .rv.empty { font-style:italic; font-weight:300; color:#222; font-size:.85rem; }
+    .receipt-foot {
+      margin-top:1.5rem; padding-top:1rem;
+      border-top:1px dashed var(--dim);
+      font-size:.58rem; letter-spacing:.2em; text-transform:uppercase; color:#252525; text-align:center;
+    }
+    .bid { font-size:.62rem; letter-spacing:.12em; color:#333; }
+    .bid span { color:var(--mid); }
+
+    .logbox {
+      border:1px solid var(--border); padding:.85rem 1rem;
+      font-size:.63rem; line-height:1.9; color:#3a3a3a;
+      min-height:72px; max-height:130px; overflow-y:auto;
+    }
+    .logbox::-webkit-scrollbar{ width:3px; }
+    .logbox::-webkit-scrollbar-thumb{ background:var(--dim); }
+    .ll { display:block; }
+    .ll .ts { color:#252525; margin-right:.5rem; }
+    .ll.ok { color:#777; }
+    .ll.err{ color:#444; }
+
+    /* RIGHT — WEBHOOK SEND FORM */
+    .send-side {
+      padding: clamp(2rem,5vw,3.5rem);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .url-bar {
+      border:1px solid var(--dim); display:flex; transition:border-color .3s;
+    }
+    .url-bar:focus-within { border-color:var(--white); }
+    .url-method {
+      padding:.8rem 1rem; font-size:.6rem; letter-spacing:.15em;
+      color:var(--mid); border-right:1px solid var(--dim); white-space:nowrap;
+      display:flex; align-items:center; background:rgba(255,255,255,.02); user-select:none;
+    }
+    #webhookUrl {
+      flex:1; background:transparent; border:none; outline:none;
+      color:#888; font-family:'DM Mono',monospace; font-size:.72rem;
+      padding:.8rem; letter-spacing:.03em;
+    }
+    #webhookUrl::placeholder { color:#222; }
+
+    .fields-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;
+    }
+    @media(max-width:480px){ .fields-grid{ grid-template-columns:1fr; } }
+
+    .fg { position:relative; }
+
+    .fg label {
+      display:block; font-size:.55rem; letter-spacing:.25em;
+      text-transform:uppercase; color:var(--mid); margin-bottom:.5rem;
+    }
+    .fg input, .fg select {
+      width:100%; background:transparent; border:none;
+      border-bottom:1px solid var(--dim); color:var(--white);
+      font-family:'Playfair Display',serif; font-size:1.05rem;
+      padding:.4rem 0 .6rem; outline:none; transition:border-color .3s;
+      appearance:none; -webkit-appearance:none;
+    }
+    .fg input::placeholder { color:#222; font-style:italic; }
+    .fg input:focus, .fg select:focus { border-color:var(--white); }
+    .fg select {
+      cursor:pointer;
+      background-image:url("data:image/svg+xml,%3Csvg width='8' height='5' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23555'/%3E%3C/svg%3E");
+      background-repeat:no-repeat; background-position:right .4rem center; padding-right:1.2rem;
+    }
+    .fg select option { background:var(--black); color:var(--white); }
+    .uline {
+      position:absolute; bottom:0; left:0; width:0; height:1px;
+      background:var(--white); transition:width .4s cubic-bezier(.25,.46,.45,.94); pointer-events:none;
+    }
+    .fg input:focus ~ .uline, .fg select:focus ~ .uline { width:100%; }
+
+    .divider {
+      display:flex; align-items:center; gap:.75rem;
+      font-size:.55rem; letter-spacing:.25em; text-transform:uppercase; color:#2c2c2c;
+    }
+    .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+
+    .btn-send {
+      width:100%; padding:1.05rem;
+      background:var(--white); color:var(--black);
+      border:1px solid var(--white);
+      font-family:'DM Mono',monospace; font-size:.68rem;
+      letter-spacing:.25em; text-transform:uppercase;
+      cursor:pointer; position:relative; overflow:hidden; transition:transform .12s;
+    }
+    .btn-send::after {
+      content:''; position:absolute; inset:0;
+      background:var(--black); transform:translateY(100%);
+      transition:transform .35s cubic-bezier(.25,.46,.45,.94);
+    }
+    .btn-send:hover::after { transform:translateY(0); }
+    .btn-send span { position:relative; z-index:1; transition:color .35s; }
+    .btn-send:hover span { color:var(--white); }
+    .btn-send:active { transform:scale(.99); }
+
+    .payload-wrap { border:1px solid var(--border); overflow:hidden; }
+    .payload-head {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:.6rem .9rem; border-bottom:1px solid var(--border);
+      background:rgba(255,255,255,.01);
+    }
+    .payload-head span { font-size:.55rem; letter-spacing:.2em; text-transform:uppercase; color:var(--mid); }
+    .copy-btn {
+      font-size:.55rem; letter-spacing:.15em; text-transform:uppercase;
+      color:#444; background:none; border:none; cursor:pointer;
+      font-family:'DM Mono',monospace; transition:color .2s;
+    }
+    .copy-btn:hover { color:var(--white); }
+    pre#payloadPre {
+      padding:.85rem .9rem; font-size:.63rem; line-height:1.75;
+      color:#3a3a3a; white-space:pre-wrap; word-break:break-all;
+      max-height:140px; overflow-y:auto;
+    }
+    pre#payloadPre::-webkit-scrollbar{ width:3px; }
+    pre#payloadPre::-webkit-scrollbar-thumb{ background:var(--dim); }
+
+    footer {
+      border-top:1px solid var(--border);
+      padding:.9rem clamp(1.5rem,5vw,3.5rem);
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:.55rem; letter-spacing:.18em; text-transform:uppercase; color:#2a2a2a;
+    }
+
+    #toast {
+      position:fixed; bottom:1.5rem; right:1.5rem;
+      padding:.85rem 1.25rem; font-size:.62rem; letter-spacing:.15em; text-transform:uppercase;
+      border:1px solid var(--white); background:var(--black); color:var(--white);
+      opacity:0; transform:translateY(.6rem);
+      transition:opacity .3s,transform .3s;
+      z-index:1000; pointer-events:none; max-width:300px;
+    }
+    #toast.show { opacity:1; transform:translateY(0); }
+    #toast.err  { border-color:#333; color:#555; }
+
+    @keyframes fi { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+    .fi { animation:fi .5s ease both; }
+    .fi:nth-child(1){animation-delay:.05s}
+    .fi:nth-child(2){animation-delay:.12s}
+    .fi:nth-child(3){animation-delay:.18s}
+    .fi:nth-child(4){animation-delay:.24s}
+    .fi:nth-child(5){animation-delay:.30s}
+    .fi:nth-child(6){animation-delay:.36s}
+    .fi:nth-child(7){animation-delay:.42s}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">MANU <em>Coffee</em></div>
+  <div class="hbadge">Webhook System</div>
+</header>
+
+<div class="wrap">
+
+  <!-- LEFT: LIVE PREVIEW -->
+  <div class="preview-side">
+
+    <div class="col-label fi">Live Preview</div>
+
+    <div class="receipt fi">
+      <div class="receipt-top">
+        <div class="receipt-brand">MANU <em>Coffee</em></div>
+        <div class="live-badge"><span class="dot"></span>Live</div>
+      </div>
+      <div class="receipt-row">
+        <span class="rk">Name</span>
+        <span class="rv empty" id="rv-name">—</span>
+      </div>
+      <div class="receipt-row">
+        <span class="rk">Phone</span>
+        <span class="rv empty" id="rv-phone">—</span>
+      </div>
+      <div class="receipt-row">
+        <span class="rk">Date</span>
+        <span class="rv empty" id="rv-date">—</span>
+      </div>
+      <div class="receipt-row">
+        <span class="rk">Time</span>
+        <span class="rv empty" id="rv-time">—</span>
+      </div>
+      <div class="receipt-foot">MANU Coffee · Reservation Slip</div>
+    </div>
+
+    <div class="bid fi">Booking ID: <span id="bidVal">—</span></div>
+
+    <div class="col-label fi">Webhook Log</div>
+    <div class="logbox fi" id="logBox">
+      <span style="color:#1e1e1e;font-style:italic;">Awaiting first request…</span>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: WEBHOOK SEND FORM -->
+  <div class="send-side">
+
+    <div class="col-label fi">Send via Webhook</div>
+
+    <!-- URL -->
+    <div class="fi">
+      <label style="font-size:.55rem;letter-spacing:.25em;text-transform:uppercase;color:var(--mid);display:block;margin-bottom:.5rem;">Webhook URL</label>
+      <div class="url-bar">
+        <span class="url-method">POST →</span>
+        <input type="url" id="webhookUrl" placeholder="https://your-site.com/api/webhook"/>
+      </div>
+      <p style="font-size:.55rem;color:#2a2a2a;margin-top:.4rem;letter-spacing:.04em;">
+        Paste your coffee shop site endpoint. JSON is sent on submit.
+      </p>
+    </div>
+
+    <div class="divider fi">Booking Details</div>
+
+    <!-- Fields 2x2 -->
+    <div class="fields-grid">
+      <div class="fg fi">
+        <label for="nameInput">Name</label>
+        <input type="text" id="nameInput" placeholder="Full name" autocomplete="off"/>
+        <div class="uline"></div>
+      </div>
+      <div class="fg fi">
+        <label for="phoneInput">Phone</label>
+        <input type="tel" id="phoneInput" placeholder="+63 9XX XXX XXXX" autocomplete="off"/>
+        <div class="uline"></div>
+      </div>
+      <div class="fg fi">
+        <label for="dateInput">Date</label>
+        <input type="date" id="dateInput"/>
+        <div class="uline"></div>
+      </div>
+      <div class="fg fi">
+        <label for="timeInput">Time</label>
+        <select id="timeInput">
+          <option value="" disabled selected>— Pick slot —</option>
+          <option>07:00 AM</option><option>08:00 AM</option>
+          <option>09:00 AM</option><option>10:00 AM</option>
+          <option>11:00 AM</option><option>12:00 PM</option>
+          <option>01:00 PM</option><option>02:00 PM</option>
+          <option>03:00 PM</option><option>04:00 PM</option>
+          <option>05:00 PM</option><option>06:00 PM</option>
+          <option>07:00 PM</option><option>08:00 PM</option>
+        </select>
+        <div class="uline"></div>
+      </div>
+    </div>
+
+    <button class="btn-send fi" id="sendBtn">
+      <span>Send Booking via Webhook →</span>
+    </button>
+
+    <!-- Payload preview -->
+    <div class="payload-wrap fi">
+      <div class="payload-head">
+        <span>JSON Payload Preview</span>
+        <button class="copy-btn" id="copyBtn">Copy</button>
+      </div>
+      <pre id="payloadPre">{
+  "booking_id": "—",
+  "coffee_shop": "MANU Coffee",
+  "name": "—",
+  "phone": "—",
+  "date": "—",
+  "time": "—",
+  "submitted_at": "—"
+}</pre>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <span>© 2025 MANU Coffee</span>
+  <span>Webhook Booking System · Davao, PH</span>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+  // Live preview sync
+  const fieldMap = {
+    nameInput:  { rv:'rv-name',  fmt: v => v||null },
+    phoneInput: { rv:'rv-phone', fmt: v => v||null },
+    dateInput:  { rv:'rv-date',  fmt: v => {
+      if(!v) return null;
+      return new Date(v+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+    }},
+    timeInput:  { rv:'rv-time',  fmt: v => v||null },
+  };
+
+  Object.keys(fieldMap).forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input',  ()=>sync(id));
+    el.addEventListener('change', ()=>sync(id));
+  });
+
+  function sync(id) {
+    const { rv, fmt } = fieldMap[id];
+    const raw = document.getElementById(id).value;
+    const val = fmt(typeof raw==='string' ? raw.trim() : raw);
+    const el  = document.getElementById(rv);
+    if(val){ el.textContent=val; el.classList.remove('empty'); }
+    else   { el.textContent='—'; el.classList.add('empty'); }
+    refreshPayload();
+  }
+
+  function getPayload(id) {
+    return {
+      booking_id:   id||'—',
+      coffee_shop:  'MANU Coffee',
+      name:         document.getElementById('nameInput').value.trim()||'—',
+      phone:        document.getElementById('phoneInput').value.trim()||'—',
+      date:         document.getElementById('dateInput').value||'—',
+      time:         document.getElementById('timeInput').value||'—',
+      submitted_at: new Date().toISOString(),
+      source:       'manu-coffee-webhook'
+    };
+  }
+
+  function refreshPayload() {
+    document.getElementById('payloadPre').textContent =
+      JSON.stringify(getPayload(), null, 2);
+  }
+  refreshPayload();
+
+  document.getElementById('copyBtn').addEventListener('click', ()=>{
+    navigator.clipboard.writeText(document.getElementById('payloadPre').textContent)
+      .then(()=>toast('Payload copied!'))
+      .catch(()=>toast('Copy failed.',true));
+  });
+
+  function genId() {
+    return 'MCF-'+Array.from({length:8},()=>'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.random()*36|0]).join('');
+  }
+
+  function log(msg,cls='') {
+    const box = document.getElementById('logBox');
+    if(box.querySelector('span')) box.innerHTML='';
+    const l=document.createElement('span');
+    l.className=`ll ${cls}`;
+    const ts=new Date().toLocaleTimeString('en-US',{hour12:false});
+    l.innerHTML=`<span class="ts">[${ts}]</span>${msg}`;
+    box.appendChild(l); box.scrollTop=box.scrollHeight;
+  }
+
+  function toast(msg,err=false) {
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.className='show'+(err?' err':'');
+    clearTimeout(t._t); t._t=setTimeout(()=>t.className='',3200);
+  }
+
+  document.getElementById('sendBtn').addEventListener('click', async ()=>{
+    const name    = document.getElementById('nameInput').value.trim();
+    const phone   = document.getElementById('phoneInput').value.trim();
+    const date    = document.getElementById('dateInput').value;
+    const time    = document.getElementById('timeInput').value;
+    const webhook = document.getElementById('webhookUrl').value.trim();
+
+    if(!name||!phone||!date||!time){
+      toast('Fill in all booking details.',true); return;
+    }
+
+    const id = genId();
+    document.getElementById('bidVal').textContent = id;
+
+    const payload = getPayload(id);
+    payload.submitted_at = new Date().toISOString();
+    document.getElementById('payloadPre').textContent = JSON.stringify(payload,null,2);
+
+    log(`Booking prepared — ${id}`,'ok');
+
+    if(!webhook){
+      log('No webhook URL — logged locally.','');
+      toast(`Booking ready. Add a webhook URL to send.`);
+      console.log('📋 MANU Coffee:',payload); return;
+    }
+
+    log(`POST → ${webhook}`,'');
+    try {
+      await fetch(webhook,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-MANU-ID':id},
+        body:JSON.stringify(payload),
+        mode:'no-cors'
+      });
+      log(`✓ Webhook fired.`,'ok');
+      toast(`Sent! Booking ID: ${id}`);
+    } catch(e) {
+      log(`✗ ${e.message}`,'err');
+      toast('Webhook failed. Check URL.',true);
+    }
+  });
+
+  document.getElementById('dateInput').min = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
